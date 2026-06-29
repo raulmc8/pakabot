@@ -1,7 +1,10 @@
 import 'dotenv/config';
 import { existsSync, readdirSync, rmSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { join } from 'node:path';
-import qrcode from 'qrcode-terminal';
+import { URL } from 'node:url';
+import QRCode from 'qrcode';
+import qrcodeTerminal from 'qrcode-terminal';
 import pkg from 'whatsapp-web.js';
 
 const { Client, LocalAuth } = pkg;
@@ -16,8 +19,14 @@ const headless = process.env.BROWSER_HEADLESS === 'true';
 const authDataPath = process.env.WWEBJS_AUTH_PATH || '.wwebjs_auth';
 const printTerminalQr = process.env.PRINT_TERMINAL_QR === 'true' || !headless;
 const clearChromiumLocks = process.env.CLEAR_CHROMIUM_LOCKS !== 'false';
+const qrServerEnabled = process.env.ENABLE_QR_SERVER !== 'false';
+const qrAccessToken = process.env.QR_ACCESS_TOKEN || '';
+const qrServerPort = Number(process.env.PORT || process.env.QR_SERVER_PORT || 3000);
 const botStartedAt = Math.floor(Date.now() / 1000);
 let isShuttingDown = false;
+let latestQrData = '';
+let latestQrCreatedAt = 0;
+let connectionStatus = 'iniciando';
 
 const mainMenu = `¡HOLA! SOY PAKABOTS 👋
 QUIERO QUE SEPAS QUE ESTOY AQUI PARA AYUDARTE A EMPRENDER TU NEGOCIO
@@ -130,6 +139,10 @@ if (clearChromiumLocks) {
   clearStaleChromiumLocks(authDataPath);
 }
 
+if (qrServerEnabled) {
+  startQrServer();
+}
+
 const client = new Client({
   authStrategy: new LocalAuth({
     dataPath: authDataPath
@@ -147,12 +160,16 @@ console.log(`Iniciando Pakabots con ${executablePath || 'el navegador de Puppete
 console.log(`Guardando sesion de WhatsApp en ${authDataPath}...`);
 
 client.on('qr', (qr) => {
+  latestQrData = qr;
+  latestQrCreatedAt = Date.now();
+  connectionStatus = 'esperando escaneo';
+
   console.log('QR nuevo para iniciar Pakabots. Usa el QR mas reciente; expira rapido.');
   console.log(`WHATSAPP_QR_DATA=${qr}`);
 
   if (printTerminalQr) {
     console.log('Escanea este QR con WhatsApp para iniciar Pakabots:');
-    qrcode.generate(qr, { small: true });
+    qrcodeTerminal.generate(qr, { small: true });
   }
 });
 
@@ -161,14 +178,19 @@ client.on('loading_screen', (percent, message) => {
 });
 
 client.on('authenticated', () => {
+  connectionStatus = 'autenticado';
   console.log('WhatsApp autenticado correctamente.');
 });
 
 client.on('ready', () => {
+  latestQrData = '';
+  latestQrCreatedAt = 0;
+  connectionStatus = 'listo';
   console.log('Pakabots esta listo para responder mensajes.');
 });
 
 client.on('change_state', (state) => {
+  connectionStatus = state;
   console.log('Estado de conexion de WhatsApp:', state);
 });
 
@@ -203,6 +225,7 @@ ${mainMenu}`);
 });
 
 client.on('auth_failure', (message) => {
+  connectionStatus = 'fallo de autenticacion';
   console.error('No se pudo autenticar WhatsApp:', message);
 });
 
@@ -211,6 +234,7 @@ client.on('error', (error) => {
 });
 
 client.on('disconnected', (reason) => {
+  connectionStatus = `desconectado: ${reason}`;
   console.log('Pakabots se desconecto:', reason);
 });
 
@@ -254,6 +278,122 @@ function maskChatId(value) {
   const [id, server] = value.split('@');
   const visibleDigits = id.slice(-4);
   return `***${visibleDigits}@${server || 'desconocido'}`;
+}
+
+function startQrServer() {
+  const server = createServer((request, response) => {
+    handleQrRequest(request, response).catch((error) => {
+      console.error('Error en servidor QR:', error);
+      response.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+      response.end('Error interno');
+    });
+  });
+
+  server.listen(qrServerPort, '0.0.0.0', () => {
+    console.log(`Servidor QR disponible en puerto ${qrServerPort}.`);
+  });
+}
+
+async function handleQrRequest(request, response) {
+  const requestUrl = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
+
+  if (requestUrl.pathname === '/health') {
+    response.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+    response.end('ok');
+    return;
+  }
+
+  if (requestUrl.pathname !== '/' && requestUrl.pathname !== '/qr') {
+    response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    response.end('No encontrado');
+    return;
+  }
+
+  if (!qrAccessToken) {
+    response.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8' });
+    response.end(renderQrPage({
+      title: 'Configura QR_ACCESS_TOKEN',
+      body: '<p>Falta configurar la variable <code>QR_ACCESS_TOKEN</code> en Render.</p>'
+    }));
+    return;
+  }
+
+  if (requestUrl.searchParams.get('token') !== qrAccessToken) {
+    response.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8' });
+    response.end(renderQrPage({
+      title: 'Acceso privado',
+      body: '<p>Agrega <code>?token=TU_TOKEN</code> a la URL para ver el QR.</p>'
+    }));
+    return;
+  }
+
+  const escapedStatus = escapeHtml(connectionStatus);
+
+  if (!latestQrData) {
+    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    response.end(renderQrPage({
+      title: 'Pakabots',
+      body: `<p>Estado: <strong>${escapedStatus}</strong></p><p>Si el bot aun no esta conectado, espera unos segundos. Esta pagina se actualiza sola.</p>`
+    }));
+    return;
+  }
+
+  const qrImage = await QRCode.toDataURL(latestQrData, {
+    errorCorrectionLevel: 'M',
+    margin: 4,
+    width: 420,
+    color: {
+      dark: '#000000',
+      light: '#ffffff'
+    }
+  });
+  const createdAt = new Date(latestQrCreatedAt).toLocaleString('es-MX', {
+    dateStyle: 'medium',
+    timeStyle: 'medium',
+    timeZone: 'America/Mexico_City'
+  });
+
+  response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  response.end(renderQrPage({
+    title: 'Escanea el QR',
+    body: `<p>Estado: <strong>${escapedStatus}</strong></p><img src="${qrImage}" alt="QR de WhatsApp"><p>Generado: ${escapeHtml(createdAt)}</p><p>Esta pagina se refresca sola para mostrar el QR mas reciente.</p>`
+  }));
+}
+
+function renderQrPage({ title, body }) {
+  return `<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="8">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    :root { color-scheme: light; font-family: Arial, sans-serif; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f6f7f9; color: #191919; }
+    main { width: min(92vw, 560px); padding: 28px; background: #fff; border: 1px solid #ddd; border-radius: 8px; text-align: center; }
+    h1 { margin: 0 0 16px; font-size: 28px; }
+    p { margin: 12px 0; line-height: 1.45; }
+    code { background: #f0f0f0; padding: 2px 5px; border-radius: 4px; }
+    img { width: min(100%, 420px); height: auto; margin: 12px auto; display: block; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>${escapeHtml(title)}</h1>
+    ${body}
+  </main>
+</body>
+</html>`;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 function clearStaleChromiumLocks(rootPath) {

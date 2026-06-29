@@ -45,6 +45,8 @@ Edita `.env` para cambiar:
 - `WWEBJS_AUTH_PATH`: ruta donde se guarda la sesion de WhatsApp. En deploy debe apuntar a un disco persistente.
 - `PRINT_TERMINAL_QR`: usa `false` en Render para evitar que el QR de terminal salga cortado por los logs.
 - `CLEAR_CHROMIUM_LOCKS`: usa `true` en Render para limpiar locks viejos de Chromium despues de reinicios.
+- `ENABLE_QR_SERVER`: usa `true` para abrir una pagina privada con el QR actual.
+- `QR_ACCESS_TOKEN`: token privado para proteger la pagina del QR.
 
 En macOS, el bot intenta encontrar automaticamente estos navegadores:
 
@@ -68,12 +70,12 @@ Este proyecto usa WhatsApp Web mediante `whatsapp-web.js`. Para produccion forma
 
 ## Deploy para pruebas
 
-El proyecto incluye un `Dockerfile` para correr el bot con Chromium en Linux y un `render.yaml` para desplegarlo como Background Worker en Render.
+El proyecto incluye un `Dockerfile` para correr el bot con Chromium en Linux y un `render.yaml` para desplegarlo como Web Service en Render. El Web Service mantiene el bot encendido y tambien expone una pagina privada para escanear el QR.
 
 Requisitos para cloud:
 
 - Repositorio GitHub/GitLab/Bitbucket con este codigo.
-- Servicio tipo worker o proceso siempre encendido.
+- Servicio tipo Web Service o proceso siempre encendido.
 - Disco persistente montado en `/data` para conservar la sesion de WhatsApp.
 - Variables de entorno configuradas, especialmente `ADVISOR_PHONE`.
 
@@ -82,8 +84,9 @@ En Render:
 1. Sube el repo a GitHub.
 2. Crea un Blueprint desde `render.yaml`.
 3. Cuando Render lo pida, captura `ADVISOR_PHONE` en formato internacional, solo numeros.
-4. Abre los logs del worker y escanea el QR con WhatsApp desde `Dispositivos vinculados`.
-5. Verifica en logs que aparezca `Pakabots esta listo para responder mensajes.`
+4. Captura `QR_ACCESS_TOKEN` con una palabra o token privado.
+5. Abre `https://TU-SERVICIO.onrender.com/qr?token=TU_TOKEN` y escanea el QR con WhatsApp desde `Dispositivos vinculados`.
+6. Verifica en logs que aparezca `Pakabots esta listo para responder mensajes.`
 
 Si Render muestra un QR dificil de escanear, copia el valor de la linea `WHATSAPP_QR_DATA=...` mas reciente y genera una imagen limpia localmente:
 

@@ -1,9 +1,10 @@
 services:
-  - type: worker
+  - type: web
     name: pakabots-whatsapp
     runtime: docker
     plan: starter
     region: oregon
+    healthCheckPath: /health
     disk:
       name: whatsapp-auth
       mountPath: /data
@@ -29,3 +30,7 @@ services:
         value: false
       - key: CLEAR_CHROMIUM_LOCKS
         value: true
+      - key: ENABLE_QR_SERVER
+        value: true
+      - key: QR_ACCESS_TOKEN
+        sync: false
