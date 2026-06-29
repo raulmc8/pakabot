@@ -1,5 +1,6 @@
 import 'dotenv/config';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import qrcode from 'qrcode-terminal';
 import pkg from 'whatsapp-web.js';
 
@@ -14,7 +15,9 @@ const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || findBrowserPath(
 const headless = process.env.BROWSER_HEADLESS === 'true';
 const authDataPath = process.env.WWEBJS_AUTH_PATH || '.wwebjs_auth';
 const printTerminalQr = process.env.PRINT_TERMINAL_QR === 'true' || !headless;
+const clearChromiumLocks = process.env.CLEAR_CHROMIUM_LOCKS !== 'false';
 const botStartedAt = Math.floor(Date.now() / 1000);
+let isShuttingDown = false;
 
 const mainMenu = `¡HOLA! SOY PAKABOTS 👋
 QUIERO QUE SEPAS QUE ESTOY AQUI PARA AYUDARTE A EMPRENDER TU NEGOCIO
@@ -123,6 +126,10 @@ const directReplies = new Map([
   ['buenas noches', mainMenu]
 ]);
 
+if (clearChromiumLocks) {
+  clearStaleChromiumLocks(authDataPath);
+}
+
 const client = new Client({
   authStrategy: new LocalAuth({
     dataPath: authDataPath
@@ -207,6 +214,9 @@ client.on('disconnected', (reason) => {
   console.log('Pakabots se desconecto:', reason);
 });
 
+process.once('SIGINT', () => shutdown('SIGINT'));
+process.once('SIGTERM', () => shutdown('SIGTERM'));
+
 client.initialize().catch((error) => {
   console.error('No se pudo iniciar Pakabots:', error);
   process.exitCode = 1;
@@ -244,6 +254,63 @@ function maskChatId(value) {
   const [id, server] = value.split('@');
   const visibleDigits = id.slice(-4);
   return `***${visibleDigits}@${server || 'desconocido'}`;
+}
+
+function clearStaleChromiumLocks(rootPath) {
+  const lockNames = new Set(['SingletonCookie', 'SingletonLock', 'SingletonSocket', 'DevToolsActivePort']);
+  const removedLocks = [];
+
+  removeLocks(rootPath);
+
+  if (removedLocks.length > 0) {
+    console.log(`Limpieza de Chromium: ${removedLocks.length} lock(s) removidos.`);
+  }
+
+  function removeLocks(currentPath) {
+    if (!existsSync(currentPath)) return;
+
+    let entries;
+
+    try {
+      entries = readdirSync(currentPath, { withFileTypes: true });
+    } catch (error) {
+      console.warn(`No se pudo revisar ${currentPath} para limpiar locks:`, error.message);
+      return;
+    }
+
+    for (const entry of entries) {
+      const entryPath = join(currentPath, entry.name);
+
+      if (lockNames.has(entry.name)) {
+        try {
+          rmSync(entryPath, { force: true, recursive: true });
+          removedLocks.push(entryPath);
+        } catch (error) {
+          console.warn(`No se pudo remover lock de Chromium ${entryPath}:`, error.message);
+        }
+        continue;
+      }
+
+      if (entry.isDirectory()) {
+        removeLocks(entryPath);
+      }
+    }
+  }
+}
+
+async function shutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  console.log(`Recibido ${signal}. Cerrando Pakabots...`);
+
+  try {
+    await client.destroy();
+  } catch (error) {
+    console.error('No se pudo cerrar WhatsApp limpiamente:', error);
+  } finally {
+    process.exit(0);
+  }
 }
 
 function findBrowserPath() {

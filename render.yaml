@@ -27,3 +27,5 @@ services:
         value: /data/.wwebjs_auth
       - key: PRINT_TERMINAL_QR
         value: false
+      - key: CLEAR_CHROMIUM_LOCKS
+        value: true

@@ -44,6 +44,7 @@ Edita `.env` para cambiar:
 - `BROWSER_HEADLESS`: usa `false` para abrir Edge visible o `true` para correrlo en modo invisible.
 - `WWEBJS_AUTH_PATH`: ruta donde se guarda la sesion de WhatsApp. En deploy debe apuntar a un disco persistente.
 - `PRINT_TERMINAL_QR`: usa `false` en Render para evitar que el QR de terminal salga cortado por los logs.
+- `CLEAR_CHROMIUM_LOCKS`: usa `true` en Render para limpiar locks viejos de Chromium despues de reinicios.
 
 En macOS, el bot intenta encontrar automaticamente estos navegadores:
 
