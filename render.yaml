@@ -1,0 +1,27 @@
+services:
+  - type: worker
+    name: pakabots-whatsapp
+    runtime: docker
+    plan: starter
+    region: oregon
+    disk:
+      name: whatsapp-auth
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: BUSINESS_NAME
+        value: Pakas.mx
+      - key: ADVISOR_PHONE
+        sync: false
+      - key: CATALOG_URL
+        value: https://pakas.mx
+      - key: WHOLESALE_URL
+        value: https://pakas.mx/mayoreo
+      - key: TRACKING_URL
+        value: https://pakas.mx/rastreo
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /usr/bin/chromium
+      - key: BROWSER_HEADLESS
+        value: true
+      - key: WWEBJS_AUTH_PATH
+        value: /data/.wwebjs_auth
