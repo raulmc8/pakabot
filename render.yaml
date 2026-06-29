@@ -25,3 +25,5 @@ services:
         value: true
       - key: WWEBJS_AUTH_PATH
         value: /data/.wwebjs_auth
+      - key: PRINT_TERMINAL_QR
+        value: false

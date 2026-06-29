@@ -43,6 +43,7 @@ Edita `.env` para cambiar:
 - `PUPPETEER_EXECUTABLE_PATH`: ruta de Edge, Chrome o Chromium si el bot no lo encuentra automaticamente.
 - `BROWSER_HEADLESS`: usa `false` para abrir Edge visible o `true` para correrlo en modo invisible.
 - `WWEBJS_AUTH_PATH`: ruta donde se guarda la sesion de WhatsApp. En deploy debe apuntar a un disco persistente.
+- `PRINT_TERMINAL_QR`: usa `false` en Render para evitar que el QR de terminal salga cortado por los logs.
 
 En macOS, el bot intenta encontrar automaticamente estos navegadores:
 
@@ -82,3 +83,11 @@ En Render:
 3. Cuando Render lo pida, captura `ADVISOR_PHONE` en formato internacional, solo numeros.
 4. Abre los logs del worker y escanea el QR con WhatsApp desde `Dispositivos vinculados`.
 5. Verifica en logs que aparezca `Pakabots esta listo para responder mensajes.`
+
+Si Render muestra un QR dificil de escanear, copia el valor de la linea `WHATSAPP_QR_DATA=...` mas reciente y genera una imagen limpia localmente:
+
+```bash
+npm run qr -- "pega-aqui-el-valor-de-WHATSAPP_QR_DATA"
+```
+
+La imagen quedara en `tmp/whatsapp-qr.png`.

@@ -13,6 +13,7 @@ const trackingUrl = process.env.TRACKING_URL || 'https://pakas.mx/rastreo';
 const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || findBrowserPath();
 const headless = process.env.BROWSER_HEADLESS === 'true';
 const authDataPath = process.env.WWEBJS_AUTH_PATH || '.wwebjs_auth';
+const printTerminalQr = process.env.PRINT_TERMINAL_QR === 'true' || !headless;
 const botStartedAt = Math.floor(Date.now() / 1000);
 
 const mainMenu = `¡HOLA! SOY PAKABOTS 👋
@@ -139,8 +140,13 @@ console.log(`Iniciando Pakabots con ${executablePath || 'el navegador de Puppete
 console.log(`Guardando sesion de WhatsApp en ${authDataPath}...`);
 
 client.on('qr', (qr) => {
-  console.log('Escanea este QR con WhatsApp para iniciar Pakabots:');
-  qrcode.generate(qr, { small: true });
+  console.log('QR nuevo para iniciar Pakabots. Usa el QR mas reciente; expira rapido.');
+  console.log(`WHATSAPP_QR_DATA=${qr}`);
+
+  if (printTerminalQr) {
+    console.log('Escanea este QR con WhatsApp para iniciar Pakabots:');
+    qrcode.generate(qr, { small: true });
+  }
 });
 
 client.on('loading_screen', (percent, message) => {
