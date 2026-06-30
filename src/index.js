@@ -19,11 +19,15 @@ const clearChromiumLocks = process.env.CLEAR_CHROMIUM_LOCKS !== 'false';
 const qrServerEnabled = process.env.ENABLE_QR_SERVER !== 'false';
 const qrAccessToken = process.env.QR_ACCESS_TOKEN || '';
 const qrServerPort = Number(process.env.PORT || process.env.QR_SERVER_PORT || 3000);
+const businessTimeZone = process.env.BUSINESS_TIME_ZONE || 'America/Mexico_City';
+const businessHoursStart = parseHour(process.env.BUSINESS_HOURS_START, 9);
+const businessHoursEnd = parseHour(process.env.BUSINESS_HOURS_END, 18);
 const botStartedAt = Math.floor(Date.now() / 1000);
 let isShuttingDown = false;
 let latestQrData = '';
 let latestQrCreatedAt = 0;
 let connectionStatus = 'iniciando';
+const openAdvisorChats = new Set();
 
 const mainMenu = `¡HOLA! SOY PAKABOTS 👋
 QUIERO QUE SEPAS QUE ESTOY AQUI PARA AYUDARTE A EMPRENDER TU NEGOCIO
@@ -104,6 +108,12 @@ const advisorReply = `Con gusto te comunicamos con un asesor 👩‍💼
 Da clic aqui para abrir el chat:
 ${buildAdvisorLink('Hola, quiero hablar con un asesor.')}`;
 
+const unavailableReply = `Gracias por escribirnos 😊
+
+En este momento no estamos disponibles. Nuestro horario de atencion es de 9:00 am a 6:00 pm.
+
+Te responderemos en cuanto estemos dentro del horario.`;
+
 const directReplies = new Map([
   ['1', generalInfo],
   ['informacion', generalInfo],
@@ -133,6 +143,21 @@ const directReplies = new Map([
   ['buenas tardes', mainMenu],
   ['buenas noches', mainMenu]
 ]);
+
+const advisorHandoffOptions = new Set([
+  '3.1',
+  'seguimiento',
+  'seguimiento de envio',
+  '3.2',
+  'mayoreo',
+  'compras mayoreo',
+  '3.3',
+  'asesor',
+  'hablar con un asesor'
+]);
+
+const restartOptions = new Set(['menu', 'inicio']);
+const numericMenuOptions = new Set(['1', '2', '3', ...Object.keys(categoryReplies), '3.1', '3.2', '3.3']);
 
 if (clearChromiumLocks) {
   clearStaleChromiumLocks(authDataPath);
@@ -198,8 +223,18 @@ client.on('message', async (message) => {
     return;
   }
 
+  if (!isWithinBusinessHours()) {
+    await message.reply(unavailableReply);
+    return;
+  }
+
   const text = normalizeMessage(message.body);
   console.log(`Mensaje entrante de ${maskChatId(message.from)}: ${text || '(vacio)'}`);
+
+  if (isAdvisorChatOpen(message.from) && !shouldBotHandleOpenChatMessage(text)) {
+    console.log(`Chat abierto con asesor para ${maskChatId(message.from)}. Pakabots no respondio automatico.`);
+    return;
+  }
 
   if (!text) {
     await message.reply(mainMenu);
@@ -208,6 +243,7 @@ client.on('message', async (message) => {
 
   if (categoryReplies[text]) {
     await message.reply(buildCategoryReply(categoryReplies[text]));
+    openAdvisorChat(message.from);
     return;
   }
 
@@ -215,6 +251,7 @@ client.on('message', async (message) => {
 
   if (reply) {
     await message.reply(reply);
+    updateAdvisorChatState(message.from, text);
     return;
   }
 
@@ -252,6 +289,67 @@ function normalizeMessage(value) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ');
+}
+
+function parseHour(value, fallback) {
+  const hour = Number(value);
+
+  return Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : fallback;
+}
+
+function isWithinBusinessHours(date = new Date()) {
+  const { hour, minute } = getTimeInBusinessTimeZone(date);
+  const currentMinutes = hour * 60 + minute;
+  const startMinutes = businessHoursStart * 60;
+  const endMinutes = businessHoursEnd * 60;
+
+  if (startMinutes === endMinutes) {
+    return true;
+  }
+
+  if (startMinutes < endMinutes) {
+    return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+  }
+
+  return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+}
+
+function getTimeInBusinessTimeZone(date) {
+  const parts = new Intl.DateTimeFormat('es-MX', {
+    timeZone: businessTimeZone,
+    hourCycle: 'h23',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+
+  return {
+    hour: Number(values.hour),
+    minute: Number(values.minute)
+  };
+}
+
+function isAdvisorChatOpen(chatId) {
+  return openAdvisorChats.has(chatId);
+}
+
+function openAdvisorChat(chatId) {
+  openAdvisorChats.add(chatId);
+}
+
+function updateAdvisorChatState(chatId, text) {
+  if (advisorHandoffOptions.has(text)) {
+    openAdvisorChat(chatId);
+    return;
+  }
+
+  if (restartOptions.has(text) || text === '1' || text === '2' || text === '3') {
+    openAdvisorChats.delete(chatId);
+  }
+}
+
+function shouldBotHandleOpenChatMessage(text) {
+  return restartOptions.has(text) || numericMenuOptions.has(text);
 }
 
 function shouldIgnoreMessage(message) {

@@ -44,6 +44,11 @@ Edita `.env` para cambiar:
 - `CLEAR_CHROMIUM_LOCKS`: usa `true` en Render para limpiar locks viejos de Chromium despues de reinicios.
 - `ENABLE_QR_SERVER`: usa `true` para abrir una pagina privada con el QR actual.
 - `QR_ACCESS_TOKEN`: token privado para proteger la pagina del QR.
+- `BUSINESS_TIME_ZONE`: zona horaria del horario de atencion. Por defecto `America/Mexico_City`.
+- `BUSINESS_HOURS_START`: hora de apertura en formato 24 horas. Por defecto `9`.
+- `BUSINESS_HOURS_END`: hora de cierre en formato 24 horas. Por defecto `18`.
+
+Fuera del horario de 9:00 am a 6:00 pm, el bot responde que no esta disponible. Cuando un cliente ya eligio seguimiento, mayoreo, hablar con asesor o una categoria de compra, el chat queda abierto y Pakabots no vuelve a mandar el menu por mensajes libres; solo vuelve a responder si escriben `menu` o una opcion numerica.
 
 En macOS, el bot intenta encontrar automaticamente estos navegadores:
 
