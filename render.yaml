@@ -14,10 +14,6 @@ services:
         value: Pakas.mx
       - key: ADVISOR_PHONE
         sync: false
-      - key: CATALOG_URL
-        value: https://pakas.mx
-      - key: WHOLESALE_URL
-        value: https://pakas.mx/mayoreo
       - key: PUPPETEER_EXECUTABLE_PATH
         value: /usr/bin/chromium
       - key: BROWSER_HEADLESS

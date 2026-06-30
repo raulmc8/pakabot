@@ -11,8 +11,6 @@ const { Client, LocalAuth } = pkg;
 
 const businessName = process.env.BUSINESS_NAME || 'Pakas.mx';
 const advisorPhone = process.env.ADVISOR_PHONE || '5210000000000';
-const catalogUrl = process.env.CATALOG_URL || 'https://pakas.mx';
-const wholesaleUrl = process.env.WHOLESALE_URL || 'https://pakas.mx/mayoreo';
 const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || findBrowserPath();
 const headless = process.env.BROWSER_HEADLESS === 'true';
 const authDataPath = process.env.WWEBJS_AUTH_PATH || '.wwebjs_auth';
@@ -66,8 +64,7 @@ const salesMenu = `¡QUE PAKA QUIERES COMPRAR EL DIA DE HOY? 🛒
 2.6 🧸 JUGUETES
 2.7 🏠 HOGAR
 
-Tambien puedes ver el catalogo aqui 👇
-${catalogUrl}
+Tambien puedes revisar el catalogo en el perfil de WhatsApp Business.
 
 Escribe el numero de la categoria que te interesa 😊`;
 
@@ -81,13 +78,13 @@ const supportMenu = `¡HOLA PAKAMIGO! 👋
 Escribe el numero de la opcion que necesitas 😊`;
 
 const categoryReplies = {
-  '2.1': 'DAMAS',
-  '2.2': 'CABALLERO',
-  '2.3': 'NIÑOS',
-  '2.4': 'CALZADO',
-  '2.5': 'MOCHILAS',
-  '2.6': 'JUGUETES',
-  '2.7': 'HOGAR'
+  '2.1': 'dama',
+  '2.2': 'caballero',
+  '2.3': 'niño',
+  '2.4': 'calzado',
+  '2.5': 'mochilas',
+  '2.6': 'juguetes',
+  '2.7': 'hogar'
 };
 
 const trackingReply = `Para dar seguimiento a tu envio, por favor escribe tu nombre completo en el chat con un asesor 📦
@@ -97,10 +94,10 @@ Enseguida te pasaremos con un asesor para ayudarte.
 Da clic aqui para abrir el chat:
 ${buildAdvisorLink('Hola, necesito ayuda con el seguimiento de mi envio. Mi nombre completo es: ')}`;
 
-const wholesaleReply = `Para compras de mayoreo revisa la informacion aqui 🛍️
-${wholesaleUrl}
+const wholesaleReply = `Te llevaremos a un nuevo chat con un asesor especializado en compras de mayoreo 🛍️
 
-Tambien puedes escribir 3.3 para hablar con un asesor 😊`;
+Da clic aqui para abrir el chat:
+${buildAdvisorLink('Necesito informacion de mayoreo en pakas de: ')}`;
 
 const advisorReply = `Con gusto te comunicamos con un asesor 👩‍💼
 
@@ -268,12 +265,12 @@ function shouldIgnoreMessage(message) {
 }
 
 function buildCategoryReply(category) {
-  return `Perfecto, te compartimos informacion de pakas de ${category} 🛍️
+  return `Perfecto, te llevaremos a un nuevo chat con un asesor para informacion de pakas de ${category} 🛍️
 
-Catalogo 👇
-${catalogUrl}
+Tambien puedes revisar el catalogo en el perfil de WhatsApp Business.
 
-Para confirmar disponibilidad, precios y envio, escribe 3.3 y un asesor te atendera 😊`;
+Da clic aqui para abrir el chat:
+${buildAdvisorLink(`Necesito informacion de paka para ${category}.`)}`;
 }
 
 function buildAdvisorLink(message) {
