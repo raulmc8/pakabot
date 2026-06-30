@@ -39,7 +39,6 @@ Edita `.env` para cambiar:
 - `ADVISOR_PHONE`: telefono del asesor en formato internacional, solo numeros.
 - `CATALOG_URL`: enlace del catalogo.
 - `WHOLESALE_URL`: enlace de compras por mayoreo.
-- `TRACKING_URL`: enlace de rastreo.
 - `PUPPETEER_EXECUTABLE_PATH`: ruta de Edge, Chrome o Chromium si el bot no lo encuentra automaticamente.
 - `BROWSER_HEADLESS`: usa `false` para abrir Edge visible o `true` para correrlo en modo invisible.
 - `WWEBJS_AUTH_PATH`: ruta donde se guarda la sesion de WhatsApp. En deploy debe apuntar a un disco persistente.

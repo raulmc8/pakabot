@@ -13,7 +13,6 @@ const businessName = process.env.BUSINESS_NAME || 'Pakas.mx';
 const advisorPhone = process.env.ADVISOR_PHONE || '5210000000000';
 const catalogUrl = process.env.CATALOG_URL || 'https://pakas.mx';
 const wholesaleUrl = process.env.WHOLESALE_URL || 'https://pakas.mx/mayoreo';
-const trackingUrl = process.env.TRACKING_URL || 'https://pakas.mx/rastreo';
 const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || findBrowserPath();
 const headless = process.env.BROWSER_HEADLESS === 'true';
 const authDataPath = process.env.WWEBJS_AUTH_PATH || '.wwebjs_auth';
@@ -91,10 +90,12 @@ const categoryReplies = {
   '2.7': 'HOGAR'
 };
 
-const trackingReply = `Puedes consultar el seguimiento de tu envio aqui 📦
-${trackingUrl}
+const trackingReply = `Para dar seguimiento a tu envio, por favor escribe tu nombre completo en el chat con un asesor 📦
 
-Si necesitas ayuda adicional escribe 3.3 para hablar con un asesor 😊`;
+Enseguida te pasaremos con un asesor para ayudarte.
+
+Da clic aqui para abrir el chat:
+${buildAdvisorLink('Hola, necesito ayuda con el seguimiento de mi envio. Mi nombre completo es: ')}`;
 
 const wholesaleReply = `Para compras de mayoreo revisa la informacion aqui 🛍️
 ${wholesaleUrl}
@@ -103,7 +104,8 @@ Tambien puedes escribir 3.3 para hablar con un asesor 😊`;
 
 const advisorReply = `Con gusto te comunicamos con un asesor 👩‍💼
 
-Da clic aqui: https://wa.me/${advisorPhone}`;
+Da clic aqui para abrir el chat:
+${buildAdvisorLink('Hola, quiero hablar con un asesor.')}`;
 
 const directReplies = new Map([
   ['1', generalInfo],
@@ -272,6 +274,10 @@ Catalogo 👇
 ${catalogUrl}
 
 Para confirmar disponibilidad, precios y envio, escribe 3.3 y un asesor te atendera 😊`;
+}
+
+function buildAdvisorLink(message) {
+  return `https://wa.me/${advisorPhone}?text=${encodeURIComponent(message)}`;
 }
 
 function maskChatId(value) {
