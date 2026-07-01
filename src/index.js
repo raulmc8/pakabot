@@ -108,7 +108,7 @@ const advisorReply = `Con gusto te comunicamos con un asesor 👩‍💼
 Da clic aqui para abrir el chat:
 ${buildAdvisorLink('Hola, quiero hablar con un asesor.')}`;
 
-const unavailableReply = 'Pakamigo ya no estamos en la oficina. Mañana te atendemos de 9am a 6pm.';
+const unavailableReply = 'Pakamigo ya no estamos en la oficina. Mañana te atendemos de 9am a 6pm. Gracias por tu preferencia.';
 
 const directReplies = new Map([
   ['1', generalInfo],
