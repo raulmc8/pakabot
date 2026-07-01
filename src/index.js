@@ -20,14 +20,20 @@ const qrServerEnabled = process.env.ENABLE_QR_SERVER !== 'false';
 const qrAccessToken = process.env.QR_ACCESS_TOKEN || '';
 const qrServerPort = Number(process.env.PORT || process.env.QR_SERVER_PORT || 3000);
 const businessTimeZone = process.env.BUSINESS_TIME_ZONE || 'America/Mexico_City';
-const businessHoursStart = parseHour(process.env.BUSINESS_HOURS_START, 9);
-const businessHoursEnd = parseHour(process.env.BUSINESS_HOURS_END, 18);
 const botStartedAt = Math.floor(Date.now() / 1000);
 let isShuttingDown = false;
 let latestQrData = '';
 let latestQrCreatedAt = 0;
 let connectionStatus = 'iniciando';
 const openAdvisorChats = new Set();
+const businessHoursByWeekday = {
+  Mon: { start: 9 * 60, end: 18 * 60 },
+  Tue: { start: 9 * 60, end: 18 * 60 },
+  Wed: { start: 9 * 60, end: 18 * 60 },
+  Thu: { start: 9 * 60, end: 18 * 60 },
+  Fri: { start: 9 * 60, end: 15 * 60 },
+  Sat: { start: 9 * 60, end: 18 * 60 }
+};
 
 const mainMenu = `¡HOLA! SOY PAKABOTS 👋
 QUIERO QUE SEPAS QUE ESTOY AQUI PARA AYUDARTE A EMPRENDER TU NEGOCIO
@@ -108,7 +114,13 @@ const advisorReply = `Con gusto te comunicamos con un asesor 👩‍💼
 Da clic aqui para abrir el chat:
 ${buildAdvisorLink('Hola, quiero hablar con un asesor.')}`;
 
-const unavailableReply = 'Pakamigo ya no estamos en la oficina. Mañana te atendemos de 9am a 6pm. Gracias por tu preferencia.';
+const unavailableReply = `👋 ¡Hola, Paka Amigo! Gracias por escribir a PAKAS.MX.
+En este momento nuestro equipo puede tardar un poco en responder. Te atenderemos dentro de nuestro horario de servicio:
+
+🕘 Lunes a jueves: 9:00 a.m. a 6:00 p.m.
+🕘 Viernes: 9:00 a.m. a 3:00 p.m.
+🕘 Sábados: 9:00 a.m. a 6:00 p.m.
+🚫 Domingos: Cerrado.`;
 
 const directReplies = new Map([
   ['1', generalInfo],
@@ -287,32 +299,23 @@ function normalizeMessage(value) {
     .replace(/\s+/g, ' ');
 }
 
-function parseHour(value, fallback) {
-  const hour = Number(value);
-
-  return Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : fallback;
-}
-
 function isWithinBusinessHours(date = new Date()) {
-  const { hour, minute } = getTimeInBusinessTimeZone(date);
+  const { weekday, hour, minute } = getTimeInBusinessTimeZone(date);
+  const schedule = businessHoursByWeekday[weekday];
+
+  if (!schedule) {
+    return false;
+  }
+
   const currentMinutes = hour * 60 + minute;
-  const startMinutes = businessHoursStart * 60;
-  const endMinutes = businessHoursEnd * 60;
 
-  if (startMinutes === endMinutes) {
-    return true;
-  }
-
-  if (startMinutes < endMinutes) {
-    return currentMinutes >= startMinutes && currentMinutes < endMinutes;
-  }
-
-  return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+  return currentMinutes >= schedule.start && currentMinutes < schedule.end;
 }
 
 function getTimeInBusinessTimeZone(date) {
-  const parts = new Intl.DateTimeFormat('es-MX', {
+  const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: businessTimeZone,
+    weekday: 'short',
     hourCycle: 'h23',
     hour: '2-digit',
     minute: '2-digit'
@@ -320,6 +323,7 @@ function getTimeInBusinessTimeZone(date) {
   const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
 
   return {
+    weekday: values.weekday,
     hour: Number(values.hour),
     minute: Number(values.minute)
   };
