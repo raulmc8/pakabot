@@ -20,9 +20,11 @@ const qrServerEnabled = process.env.ENABLE_QR_SERVER !== 'false';
 const qrAccessToken = process.env.QR_ACCESS_TOKEN || '';
 const qrServerPort = Number(process.env.PORT || process.env.QR_SERVER_PORT || 3000);
 const businessTimeZone = process.env.BUSINESS_TIME_ZONE || 'America/Mexico_City';
-const advisorInactivityMinutes = Number(process.env.ADVISOR_INACTIVITY_TIMEOUT_MINUTES || 5);
-const advisorInactivityTimeoutMs = Number.isFinite(advisorInactivityMinutes) && advisorInactivityMinutes > 0
-  ? advisorInactivityMinutes * 60 * 1000
+const conversationInactivityMinutes = Number(
+  process.env.CONVERSATION_INACTIVITY_TIMEOUT_MINUTES || process.env.ADVISOR_INACTIVITY_TIMEOUT_MINUTES || 5
+);
+const conversationInactivityTimeoutMs = Number.isFinite(conversationInactivityMinutes) && conversationInactivityMinutes > 0
+  ? conversationInactivityMinutes * 60 * 1000
   : 5 * 60 * 1000;
 const botStartedAt = Math.floor(Date.now() / 1000);
 let isShuttingDown = false;
@@ -144,6 +146,9 @@ En este momento nuestro equipo puede tardar un poco en responder. Te atenderemos
 🕘 Sábados: 9:00 a.m. a 6:00 p.m.
 🚫 Domingos: Cerrado.`;
 
+const inactivityClosedReply = `Cerramos esta conversacion por inactividad.
+Gracias por contactarnos. Si necesitas ayuda de nuevo, escribenos y te mostraremos el menu principal.`;
+
 const directReplies = new Map([
   ['1', generalInfo],
   ['informacion', generalInfo],
@@ -261,13 +266,10 @@ client.on('message', async (message) => {
   const text = normalizeMessage(message.body);
   console.log(`Mensaje entrante de ${maskChatId(message.from)}: ${text || '(vacio)'}`);
 
-  if (hasAdvisorChatExpired(message.from)) {
-    closeAdvisorChat(message.from);
+  if (shouldRestartAfterInactivity(message.from)) {
+    clearConversationState(message.from);
     setMenuStep(message.from, 'main');
-    console.log(`Chat con asesor expirado por inactividad para ${maskChatId(message.from)}. Pakabots mostro el menu.`);
-    await message.reply(`Cerramos esta conversacion por inactividad para iniciar de nuevo.
-
-${mainMenu}`);
+    await message.reply(mainMenu);
     return;
   }
 
@@ -294,6 +296,7 @@ ${mainMenu}`);
 
   if (activeMenuStep && !isValidMenuOption(activeMenuStep, text)) {
     await message.reply(buildMenuValidationReply(activeMenuStep));
+    setMenuStep(message.from, activeMenuStep);
     return;
   }
 
@@ -383,12 +386,66 @@ function getConversationState(chatId) {
 }
 
 function saveConversationState(chatId, state) {
-  if (state.advisorOpen || state.menuStep) {
+  if (isConversationActive(state)) {
+    restartConversationInactivityTimer(chatId, state);
+    conversationStates.set(chatId, state);
+    return;
+  }
+
+  clearConversationInactivityTimer(state);
+
+  if (state.restartOnNextMessage) {
     conversationStates.set(chatId, state);
     return;
   }
 
   conversationStates.delete(chatId);
+}
+
+function clearConversationState(chatId) {
+  const state = getConversationState(chatId);
+  clearConversationInactivityTimer(state);
+  conversationStates.delete(chatId);
+}
+
+function isConversationActive(state) {
+  return state.advisorOpen === true || Boolean(state.menuStep);
+}
+
+function clearConversationInactivityTimer(state) {
+  if (state.inactivityTimer) {
+    clearTimeout(state.inactivityTimer);
+    delete state.inactivityTimer;
+  }
+}
+
+function restartConversationInactivityTimer(chatId, state) {
+  clearConversationInactivityTimer(state);
+
+  state.inactivityTimer = setTimeout(() => {
+    closeConversationForInactivity(chatId).catch((error) => {
+      console.error(`No se pudo cerrar por inactividad ${maskChatId(chatId)}:`, error);
+    });
+  }, conversationInactivityTimeoutMs);
+  state.inactivityTimer.unref?.();
+}
+
+async function closeConversationForInactivity(chatId) {
+  const state = getConversationState(chatId);
+
+  if (!isConversationActive(state)) {
+    return;
+  }
+
+  clearConversationInactivityTimer(state);
+  conversationStates.set(chatId, { restartOnNextMessage: true });
+  console.log(`Conversacion cerrada por inactividad para ${maskChatId(chatId)}.`);
+
+  await client.sendMessage(chatId, inactivityClosedReply);
+}
+
+function shouldRestartAfterInactivity(chatId) {
+  return getConversationState(chatId).restartOnNextMessage === true;
 }
 
 function getMenuStep(chatId) {
@@ -397,6 +454,7 @@ function getMenuStep(chatId) {
 
 function setMenuStep(chatId, menuStep) {
   const state = getConversationState(chatId);
+  delete state.restartOnNextMessage;
 
   if (menuStep) {
     state.menuStep = menuStep;
@@ -426,18 +484,12 @@ function isAdvisorChatOpen(chatId) {
   return getConversationState(chatId).advisorOpen === true;
 }
 
-function hasAdvisorChatExpired(chatId) {
-  const state = getConversationState(chatId);
-
-  return state.advisorOpen === true
-    && Date.now() - (state.advisorLastActivityAt || 0) >= advisorInactivityTimeoutMs;
-}
-
 function openAdvisorChat(chatId) {
   const state = getConversationState(chatId);
   state.advisorOpen = true;
   state.advisorLastActivityAt = Date.now();
   delete state.menuStep;
+  delete state.restartOnNextMessage;
   saveConversationState(chatId, state);
 }
 

@@ -45,9 +45,9 @@ Edita `.env` para cambiar:
 - `ENABLE_QR_SERVER`: usa `true` para abrir una pagina privada con el QR actual.
 - `QR_ACCESS_TOKEN`: token privado para proteger la pagina del QR.
 - `BUSINESS_TIME_ZONE`: zona horaria del horario de atencion. Por defecto `America/Mexico_City`.
-- `ADVISOR_INACTIVITY_TIMEOUT_MINUTES`: minutos de inactividad para cerrar un chat abierto con asesor. Por defecto `5`.
+- `CONVERSATION_INACTIVITY_TIMEOUT_MINUTES`: minutos de inactividad para cerrar una conversacion activa. Por defecto `5`.
 
-Fuera del horario de servicio, el bot responde que el equipo puede tardar un poco en responder. El horario configurado es lunes a jueves de 9:00 am a 6:00 pm, viernes de 9:00 am a 3:00 pm, sabados de 9:00 am a 6:00 pm y domingos cerrado. Cuando Pakabots muestra un menu, el cliente debe responder con una opcion valida de ese menu; si escribe texto libre, el bot le recuerda las opciones disponibles. Cuando un cliente ya eligio seguimiento, mayoreo, hablar con asesor o una categoria de compra, el chat queda abierto y Pakabots no vuelve a mandar el menu por mensajes libres; si pasan 5 minutos sin actividad del cliente, el bot cierra ese estado y el siguiente mensaje vuelve a mostrar el menu principal. Tambien puede volver al inicio escribiendo `menu`.
+Fuera del horario de servicio, el bot responde que el equipo puede tardar un poco en responder. El horario configurado es lunes a jueves de 9:00 am a 6:00 pm, viernes de 9:00 am a 3:00 pm, sabados de 9:00 am a 6:00 pm y domingos cerrado. Cuando Pakabots muestra un menu, el cliente debe responder con una opcion valida de ese menu; si escribe texto libre, el bot le recuerda las opciones disponibles. Cuando un cliente ya eligio seguimiento, mayoreo, hablar con asesor o una categoria de compra, el chat queda abierto y Pakabots no vuelve a mandar el menu por mensajes libres. Si pasan 5 minutos sin actividad del cliente en un menu o con asesor, el bot envia un mensaje de cierre por inactividad y agradece el contacto. El siguiente mensaje del cliente inicia de nuevo con el menu principal. Tambien puede volver al inicio escribiendo `menu`.
 
 En macOS, el bot intenta encontrar automaticamente estos navegadores:
 

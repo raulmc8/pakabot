@@ -24,7 +24,7 @@ services:
         value: false
       - key: CLEAR_CHROMIUM_LOCKS
         value: true
-      - key: ADVISOR_INACTIVITY_TIMEOUT_MINUTES
+      - key: CONVERSATION_INACTIVITY_TIMEOUT_MINUTES
         value: 5
       - key: ENABLE_QR_SERVER
         value: true
