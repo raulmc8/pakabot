@@ -20,12 +20,16 @@ const qrServerEnabled = process.env.ENABLE_QR_SERVER !== 'false';
 const qrAccessToken = process.env.QR_ACCESS_TOKEN || '';
 const qrServerPort = Number(process.env.PORT || process.env.QR_SERVER_PORT || 3000);
 const businessTimeZone = process.env.BUSINESS_TIME_ZONE || 'America/Mexico_City';
+const advisorInactivityMinutes = Number(process.env.ADVISOR_INACTIVITY_TIMEOUT_MINUTES || 5);
+const advisorInactivityTimeoutMs = Number.isFinite(advisorInactivityMinutes) && advisorInactivityMinutes > 0
+  ? advisorInactivityMinutes * 60 * 1000
+  : 5 * 60 * 1000;
 const botStartedAt = Math.floor(Date.now() / 1000);
 let isShuttingDown = false;
 let latestQrData = '';
 let latestQrCreatedAt = 0;
 let connectionStatus = 'iniciando';
-const openAdvisorChats = new Set();
+const conversationStates = new Map();
 const businessHoursByWeekday = {
   Mon: { start: 9 * 60, end: 18 * 60 },
   Tue: { start: 9 * 60, end: 18 * 60 },
@@ -96,6 +100,24 @@ const categoryReplies = {
   '2.6': 'juguetes',
   '2.7': 'hogar'
 };
+
+const menuStepOptions = new Map([
+  ['main', new Set(['1', '2', '3'])],
+  ['sales', new Set(Object.keys(categoryReplies))],
+  ['support', new Set(['3.1', '3.2', '3.3'])]
+]);
+
+const menuByStep = new Map([
+  ['main', mainMenu],
+  ['sales', salesMenu],
+  ['support', supportMenu]
+]);
+
+const menuValidationMessages = new Map([
+  ['main', 'Para poder ayudarte, necesito que elijas una opcion del menu escribiendo solo 1, 2 o 3.'],
+  ['sales', 'Para continuar con compras, escribe solo el numero de la categoria que aparece en el menu, por ejemplo 2.1, 2.2 o 2.3.'],
+  ['support', 'Para continuar con soporte, escribe solo 3.1, 3.2 o 3.3.']
+]);
 
 const trackingReply = `Para dar seguimiento a tu envio, por favor escribe tu nombre completo en el chat con un asesor 📦
 
@@ -239,13 +261,39 @@ client.on('message', async (message) => {
   const text = normalizeMessage(message.body);
   console.log(`Mensaje entrante de ${maskChatId(message.from)}: ${text || '(vacio)'}`);
 
+  if (hasAdvisorChatExpired(message.from)) {
+    closeAdvisorChat(message.from);
+    setMenuStep(message.from, 'main');
+    console.log(`Chat con asesor expirado por inactividad para ${maskChatId(message.from)}. Pakabots mostro el menu.`);
+    await message.reply(`Cerramos esta conversacion por inactividad para iniciar de nuevo.
+
+${mainMenu}`);
+    return;
+  }
+
   if (isAdvisorChatOpen(message.from) && !shouldBotHandleOpenChatMessage(text)) {
+    touchAdvisorChat(message.from);
     console.log(`Chat abierto con asesor para ${maskChatId(message.from)}. Pakabots no respondio automatico.`);
     return;
   }
 
   if (!text) {
     await message.reply(mainMenu);
+    setMenuStep(message.from, 'main');
+    return;
+  }
+
+  if (restartOptions.has(text)) {
+    closeAdvisorChat(message.from);
+    setMenuStep(message.from, 'main');
+    await message.reply(mainMenu);
+    return;
+  }
+
+  const activeMenuStep = getMenuStep(message.from);
+
+  if (activeMenuStep && !isValidMenuOption(activeMenuStep, text)) {
+    await message.reply(buildMenuValidationReply(activeMenuStep));
     return;
   }
 
@@ -259,13 +307,14 @@ client.on('message', async (message) => {
 
   if (reply) {
     await message.reply(reply);
-    updateAdvisorChatState(message.from, text);
+    updateConversationState(message.from, text);
     return;
   }
 
   await message.reply(`No encontre esa opcion, pero con gusto te ayudo 😊
 
 ${mainMenu}`);
+  setMenuStep(message.from, 'main');
 });
 
 client.on('auth_failure', (message) => {
@@ -329,23 +378,109 @@ function getTimeInBusinessTimeZone(date) {
   };
 }
 
+function getConversationState(chatId) {
+  return conversationStates.get(chatId) || {};
+}
+
+function saveConversationState(chatId, state) {
+  if (state.advisorOpen || state.menuStep) {
+    conversationStates.set(chatId, state);
+    return;
+  }
+
+  conversationStates.delete(chatId);
+}
+
+function getMenuStep(chatId) {
+  return getConversationState(chatId).menuStep;
+}
+
+function setMenuStep(chatId, menuStep) {
+  const state = getConversationState(chatId);
+
+  if (menuStep) {
+    state.menuStep = menuStep;
+  } else {
+    delete state.menuStep;
+  }
+
+  saveConversationState(chatId, state);
+}
+
+function isValidMenuOption(menuStep, text) {
+  return menuStepOptions.get(menuStep)?.has(text) || false;
+}
+
+function buildMenuValidationReply(menuStep) {
+  const validationMessage = menuValidationMessages.get(menuStep) || menuValidationMessages.get('main');
+  const menu = menuByStep.get(menuStep) || mainMenu;
+
+  return `${validationMessage}
+
+Si quieres empezar de nuevo, escribe "menu".
+
+${menu}`;
+}
+
 function isAdvisorChatOpen(chatId) {
-  return openAdvisorChats.has(chatId);
+  return getConversationState(chatId).advisorOpen === true;
+}
+
+function hasAdvisorChatExpired(chatId) {
+  const state = getConversationState(chatId);
+
+  return state.advisorOpen === true
+    && Date.now() - (state.advisorLastActivityAt || 0) >= advisorInactivityTimeoutMs;
 }
 
 function openAdvisorChat(chatId) {
-  openAdvisorChats.add(chatId);
+  const state = getConversationState(chatId);
+  state.advisorOpen = true;
+  state.advisorLastActivityAt = Date.now();
+  delete state.menuStep;
+  saveConversationState(chatId, state);
 }
 
-function updateAdvisorChatState(chatId, text) {
+function closeAdvisorChat(chatId) {
+  const state = getConversationState(chatId);
+  delete state.advisorOpen;
+  delete state.advisorLastActivityAt;
+  saveConversationState(chatId, state);
+}
+
+function touchAdvisorChat(chatId) {
+  const state = getConversationState(chatId);
+
+  if (state.advisorOpen) {
+    state.advisorLastActivityAt = Date.now();
+    saveConversationState(chatId, state);
+  }
+}
+
+function updateConversationState(chatId, text) {
   if (advisorHandoffOptions.has(text)) {
     openAdvisorChat(chatId);
     return;
   }
 
-  if (restartOptions.has(text) || text === '1' || text === '2' || text === '3') {
-    openAdvisorChats.delete(chatId);
+  closeAdvisorChat(chatId);
+
+  if (text === '2' || text === 'compra' || text === 'compras' || text === 'venta' || text === 'ventas') {
+    setMenuStep(chatId, 'sales');
+    return;
   }
+
+  if (text === '3' || text === 'soporte') {
+    setMenuStep(chatId, 'support');
+    return;
+  }
+
+  if (restartOptions.has(text) || text === 'hola' || text === 'buen dia' || text === 'buenos dias' || text === 'buenas tardes' || text === 'buenas noches') {
+    setMenuStep(chatId, 'main');
+    return;
+  }
+
+  setMenuStep(chatId, null);
 }
 
 function shouldBotHandleOpenChatMessage(text) {
