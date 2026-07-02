@@ -2,6 +2,7 @@ services:
   - type: web
     name: pakabots-whatsapp
     runtime: docker
+    autoDeployTrigger: commit
     plan: starter
     region: oregon
     healthCheckPath: /health
