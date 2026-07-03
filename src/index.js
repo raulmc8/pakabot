@@ -11,6 +11,7 @@ const { Client, LocalAuth } = pkg;
 
 const businessName = process.env.BUSINESS_NAME || 'Pakas.mx';
 const advisorPhone = process.env.ADVISOR_PHONE || '5210000000000';
+const catalogUrl = normalizeOptionalUrl(process.env.CATALOG_URL || '');
 const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || findBrowserPath();
 const headless = process.env.BROWSER_HEADLESS === 'true';
 const authDataPath = process.env.WWEBJS_AUTH_PATH || '.wwebjs_auth';
@@ -40,6 +41,7 @@ const businessHoursByWeekday = {
   Fri: { start: 9 * 60, end: 15 * 60 },
   Sat: { start: 9 * 60, end: 18 * 60 }
 };
+const catalogReference = buildCatalogReference(catalogUrl);
 
 const mainMenu = `¡HOLA! SOY PAKABOTS 👋
 QUIERO QUE SEPAS QUE ESTOY AQUI PARA AYUDARTE A EMPRENDER TU NEGOCIO
@@ -80,7 +82,7 @@ const salesMenu = `¡QUE PAKA QUIERES COMPRAR EL DIA DE HOY? 🛒
 2.6 🧸 JUGUETES
 2.7 🏠 HOGAR
 
-Tambien puedes revisar el catalogo en el perfil de WhatsApp Business.
+${catalogReference}
 
 Escribe el numero de la categoria que te interesa 😊`;
 
@@ -351,6 +353,29 @@ function normalizeMessage(value) {
     .replace(/\s+/g, ' ');
 }
 
+function normalizeOptionalUrl(value) {
+  const trimmedValue = String(value).trim();
+
+  if (!trimmedValue) {
+    return '';
+  }
+
+  if (/^https?:\/\//i.test(trimmedValue)) {
+    return trimmedValue;
+  }
+
+  return `https://${trimmedValue}`;
+}
+
+function buildCatalogReference(url) {
+  if (!url) {
+    return 'Tambien puedes revisar el catalogo en el perfil de WhatsApp Business.';
+  }
+
+  return `Tambien puedes revisar el catalogo aqui:
+${url}`;
+}
+
 function isWithinBusinessHours(date = new Date()) {
   const { weekday, hour, minute } = getTimeInBusinessTimeZone(date);
   const schedule = businessHoursByWeekday[weekday];
@@ -552,7 +577,7 @@ function shouldIgnoreMessage(message) {
 function buildCategoryReply(category) {
   return `Perfecto, te llevaremos a un nuevo chat con un asesor para informacion de pakas de ${category} 🛍️
 
-Tambien puedes revisar el catalogo en el perfil de WhatsApp Business.
+${catalogReference}
 
 Da clic aqui para abrir el chat:
 ${buildAdvisorLink(`Necesito informacion de paka para ${category}.`)}`;
