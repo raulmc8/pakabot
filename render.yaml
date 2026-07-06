@@ -6,6 +6,10 @@ services:
     plan: starter
     region: oregon
     healthCheckPath: /health
+    disk:
+      name: whatsapp-auth
+      mountPath: /data
+      sizeGB: 1
     envVars:
       - key: BUSINESS_NAME
         value: Pakas.mx
@@ -13,15 +17,19 @@ services:
         sync: false
       - key: CATALOG_URL
         sync: false
-      - key: WHATSAPP_ACCESS_TOKEN
-        sync: false
-      - key: WHATSAPP_PHONE_NUMBER_ID
-        sync: false
-      - key: WHATSAPP_VERIFY_TOKEN
-        sync: false
-      - key: WHATSAPP_APP_SECRET
-        sync: false
-      - key: WHATSAPP_GRAPH_API_VERSION
-        value: v23.0
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /usr/bin/chromium
+      - key: BROWSER_HEADLESS
+        value: true
+      - key: WWEBJS_AUTH_PATH
+        value: /data/.wwebjs_auth
+      - key: PRINT_TERMINAL_QR
+        value: false
+      - key: CLEAR_CHROMIUM_LOCKS
+        value: true
       - key: CONVERSATION_INACTIVITY_TIMEOUT_MINUTES
         value: 5
+      - key: ENABLE_QR_SERVER
+        value: true
+      - key: QR_ACCESS_TOKEN
+        sync: false
