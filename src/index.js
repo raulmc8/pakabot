@@ -5,14 +5,13 @@ import { join } from 'node:path';
 import { URL } from 'node:url';
 import QRCode from 'qrcode';
 import qrcodeTerminal from 'qrcode-terminal';
-import pkg from 'whatsapp-web.js';
-
-const { Client, LocalAuth } = pkg;
 
 const businessName = process.env.BUSINESS_NAME || 'Pakas.mx';
 const advisorPhone = process.env.ADVISOR_PHONE || '5210000000000';
 const catalogUrl = normalizeOptionalUrl(process.env.CATALOG_URL || '');
 const executablePath = resolveBrowserPath(process.env.PUPPETEER_EXECUTABLE_PATH);
+const { default: whatsappWeb } = await import('whatsapp-web.js');
+const { Client, LocalAuth } = whatsappWeb;
 const headless = process.env.BROWSER_HEADLESS === 'true';
 const authDataPath = process.env.WWEBJS_AUTH_PATH || '.wwebjs_auth';
 const printTerminalQr = process.env.PRINT_TERMINAL_QR === 'true' || !headless;
