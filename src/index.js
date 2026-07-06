@@ -12,7 +12,7 @@ const { Client, LocalAuth } = pkg;
 const businessName = process.env.BUSINESS_NAME || 'Pakas.mx';
 const advisorPhone = process.env.ADVISOR_PHONE || '5210000000000';
 const catalogUrl = normalizeOptionalUrl(process.env.CATALOG_URL || '');
-const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || findBrowserPath();
+const executablePath = resolveBrowserPath(process.env.PUPPETEER_EXECUTABLE_PATH);
 const headless = process.env.BROWSER_HEADLESS === 'true';
 const authDataPath = process.env.WWEBJS_AUTH_PATH || '.wwebjs_auth';
 const printTerminalQr = process.env.PRINT_TERMINAL_QR === 'true' || !headless;
@@ -817,4 +817,19 @@ function findBrowserPath() {
   ];
 
   return browserPaths.find((path) => existsSync(path));
+}
+
+function resolveBrowserPath(configuredPath) {
+  const trimmedPath = String(configuredPath || '').trim();
+
+  if (trimmedPath) {
+    if (existsSync(trimmedPath)) {
+      return trimmedPath;
+    }
+
+    delete process.env.PUPPETEER_EXECUTABLE_PATH;
+    console.warn(`PUPPETEER_EXECUTABLE_PATH apunta a ${trimmedPath}, pero esa ruta no existe. Se usara el navegador de Puppeteer.`);
+  }
+
+  return findBrowserPath();
 }
