@@ -195,20 +195,31 @@ const advisorHandoffOptions = new Set([
 
 const restartOptions = new Set(['menu', 'inicio']);
 const numericMenuOptions = new Set(['1', '2', '3', ...Object.keys(categoryReplies), '3.1', '3.2', '3.3']);
+delete process.env.DBUS_SESSION_BUS_ADDRESS;
+delete process.env.DBUS_SYSTEM_BUS_ADDRESS;
+
 const chromiumArgs = [
   '--no-sandbox',
   '--disable-setuid-sandbox',
   '--disable-dev-shm-usage',
   '--disable-gpu',
+  '--single-process',
+  '--disable-crash-reporter',
+  '--disable-crashpad',
   '--disable-extensions',
   '--disable-default-apps',
   '--disable-background-networking',
   '--disable-sync',
   '--disable-accelerated-2d-canvas',
+  '--disable-software-rasterizer',
+  '--disable-features=Crashpad,Translate,BackForwardCache,AcceptCHFrame,MediaRouter,OptimizationHints',
   '--no-first-run',
+  '--no-service-autorun',
   '--no-zygote',
   '--metrics-recording-only',
   '--mute-audio',
+  '--password-store=basic',
+  '--use-mock-keychain',
   '--hide-scrollbars'
 ];
 
@@ -231,6 +242,7 @@ const client = new Client({
     headless,
     args: chromiumArgs,
     dumpio: process.env.PUPPETEER_DUMPIO === 'true',
+    pipe: true,
     protocolTimeout: 120000
   }
 });
