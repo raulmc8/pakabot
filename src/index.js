@@ -203,7 +203,6 @@ const chromiumArgs = [
   '--disable-setuid-sandbox',
   '--disable-dev-shm-usage',
   '--disable-gpu',
-  '--single-process',
   '--disable-crash-reporter',
   '--disable-crashpad',
   '--disable-extensions',
@@ -242,7 +241,6 @@ const client = new Client({
     headless,
     args: chromiumArgs,
     dumpio: process.env.PUPPETEER_DUMPIO === 'true',
-    pipe: true,
     protocolTimeout: 120000
   }
 });
