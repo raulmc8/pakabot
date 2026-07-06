@@ -195,6 +195,22 @@ const advisorHandoffOptions = new Set([
 
 const restartOptions = new Set(['menu', 'inicio']);
 const numericMenuOptions = new Set(['1', '2', '3', ...Object.keys(categoryReplies), '3.1', '3.2', '3.3']);
+const chromiumArgs = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-dev-shm-usage',
+  '--disable-gpu',
+  '--disable-extensions',
+  '--disable-default-apps',
+  '--disable-background-networking',
+  '--disable-sync',
+  '--disable-accelerated-2d-canvas',
+  '--no-first-run',
+  '--no-zygote',
+  '--metrics-recording-only',
+  '--mute-audio',
+  '--hide-scrollbars'
+];
 
 if (clearChromiumLocks) {
   clearStaleChromiumLocks(authDataPath);
@@ -213,14 +229,26 @@ const client = new Client({
   puppeteer: {
     executablePath,
     headless,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    args: chromiumArgs,
+    dumpio: process.env.PUPPETEER_DUMPIO === 'true',
+    protocolTimeout: 120000
   }
 });
 
 console.log(`Iniciando Pakabots con ${executablePath || 'el navegador de Puppeteer'} en modo ${headless ? 'invisible' : 'visible'}...`);
 console.log(`Guardando sesion de WhatsApp en ${authDataPath}...`);
+console.log(`Argumentos Chromium: ${chromiumArgs.join(' ')}`);
+
+const qrStartupTimer = setTimeout(() => {
+  if (connectionStatus === 'iniciando') {
+    connectionStatus = 'WhatsApp Web no genero QR aun';
+    console.warn('WhatsApp Web no genero QR despues de 60 segundos. Revisa logs de Chromium o reinicia con una sesion nueva.');
+  }
+}, 60 * 1000);
+qrStartupTimer.unref?.();
 
 client.on('qr', (qr) => {
+  clearTimeout(qrStartupTimer);
   latestQrData = qr;
   latestQrCreatedAt = Date.now();
   connectionStatus = 'esperando escaneo';
@@ -235,15 +263,18 @@ client.on('qr', (qr) => {
 });
 
 client.on('loading_screen', (percent, message) => {
+  connectionStatus = `cargando WhatsApp ${percent}%`;
   console.log(`Cargando WhatsApp (${percent}%): ${message}`);
 });
 
 client.on('authenticated', () => {
+  clearTimeout(qrStartupTimer);
   connectionStatus = 'autenticado';
   console.log('WhatsApp autenticado correctamente.');
 });
 
 client.on('ready', () => {
+  clearTimeout(qrStartupTimer);
   latestQrData = '';
   latestQrCreatedAt = 0;
   connectionStatus = 'listo';
@@ -340,6 +371,8 @@ process.once('SIGINT', () => shutdown('SIGINT'));
 process.once('SIGTERM', () => shutdown('SIGTERM'));
 
 client.initialize().catch((error) => {
+  clearTimeout(qrStartupTimer);
+  connectionStatus = 'error al iniciar WhatsApp';
   console.error('No se pudo iniciar Pakabots:', error);
   process.exitCode = 1;
 });
